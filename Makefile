@@ -199,7 +199,6 @@ $(call add-LDFLAGS,$(TEST_BINS),$(CHECK_LDFLAGS))
 
 $(BINS) $(TEST_BINS): %:
 	$(call trace,LD,$@,$(LD) -o $@ $^ $(LDFLAGS) $(LDFLAGS-$@))
-	$(LD) -o $@ $^ $(LDFLAGS) $(LDFLAGS-$@)
 
 #
 # Automatic dependencies
