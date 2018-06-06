@@ -182,14 +182,13 @@ endef
 $(OBJS): build/%.o: %.cc $(PROTOSRCS)
 	$(call compilecxx,CC,)
 
-$(info warning $(OBJS:%.o=%-pic.o))
 $(OBJS:%.o=%-pic.o): build/%-pic.o: %.cc $(PROTOSRCS)
 	$(call compilecxx,CCPIC,-fPIC)
 
 $(PROTOOBJS): build/%.o: %.pb.cc
 	$(call compilecxx,CC,)
 
-$(PROTOOBJS:%.o=%-pic.o): build/%-pic.o: build/%.pb.cc $(PROTOSRCS)
+$(PROTOOBJS:%.o=%-pic.o): build/%-pic.o: %.pb.cc $(PROTOSRCS)
 	$(call compilecxx,CCPIC,-fPIC)
 
 #
