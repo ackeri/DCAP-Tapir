@@ -7,8 +7,8 @@ CXX = g++
 LD = g++
 EXPAND = lib/tmpl/expand
 
-CFLAGS := -g -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2 -DNASSERT
-#CFLAGS := -g -Wall -pthread -iquote.obj/gen -Wno-uninitialized 
+CFLAGS := -g -Wall -pthread -Wno-uninitialized -O2 -DNASSERT
+#CFLAGS := -g -Wall -pthread -Wno-uninitialized 
 CXXFLAGS := -g -std=c++0x
 LDFLAGS := -levent_pthreads
 ## Debian package: check
@@ -71,8 +71,8 @@ else
 trace = @printf "+ %-6s " $(1) ; echo $(2) ; $(3)
 Q = @
 endif
-GTEST := .obj/gtest/gtest.a
-GTEST_MAIN := .obj/gtest/gtest_main.a
+GTEST := build/gtest/gtest.a
+GTEST_MAIN := build/gtest/gtest_main.a
 
 ##################################################################
 # Sub-directories
@@ -84,7 +84,7 @@ GTEST_MAIN := .obj/gtest/gtest_main.a
 d :=
 
 # The object directory corresponding to the $(d)
-o = .obj/$(d)
+o = build/$(d)
 
 # SRCS is the list of all non-test-related source files.
 SRCS :=
@@ -121,18 +121,14 @@ define add-LDFLAGS
 $(foreach bin,$(1),$(eval LDFLAGS-$(bin) += $(2)))
 endef
 
-include lib/Rules.mk
-include replication/common/Rules.mk
-include replication/vr/Rules.mk
-include replication/ir/Rules.mk
-include store/common/Rules.mk
-include store/tapirstore/Rules.mk
-include store/strongstore/Rules.mk
-include store/weakstore/Rules.mk
-include store/benchmark/Rules.mk
-include lockserver/Rules.mk
-include timeserver/Rules.mk
-include libtapir/Rules.mk
+include tapir/lib/Rules.mk
+include tapir/replication/common/Rules.mk
+include tapir/replication/vr/Rules.mk
+include tapir/replication/ir/Rules.mk
+include tapir/store/common/Rules.mk
+include tapir/store/tapirstore/Rules.mk
+include tapir/timeserver/Rules.mk
+include bin/Rules.mk
 ##################################################################
 # General rules
 #
@@ -140,34 +136,33 @@ include libtapir/Rules.mk
 #
 # Protocols
 # 
-PROTOOBJS := $(PROTOS:%.proto=.obj/%.o)
-PROTOSRCS := $(PROTOS:%.proto=.obj/gen/%.pb.cc)
+PROTOOBJS := $(PROTOS:%.proto=build/%.o)
+PROTOSRCS := $(PROTOS:%.proto=%.pb.cc)
 PROTOHEADERS := $(PROTOS:%.proto=%.pb.h)
 
-$(PROTOSRCS) : .obj/gen/%.pb.cc: %.proto
-	@mkdir -p .obj/gen
-	$(call trace,PROTOC,$^,$(PROTOC) --cpp_out=.obj/gen $^)
+$(PROTOSRCS) : %.pb.cc: %.proto
+	$(call trace,PROTOC,$^,$(PROTOC) --cpp_out=. $^)
 
 #
 # Compilation
 #
 
 # -MD Enable dependency generation and compilation and output to the
-# .obj directory.  -MP Add phony targets so make doesn't complain if
+# build directory.  -MP Add phony targets so make doesn't complain if
 # a header file is removed.  -MT Explicitly set the target in the
 # generated rule to the object file we're generating.
 DEPFLAGS = -M -MF ${@:.o=.d} -MP -MT $@ -MG
 
 # $(call add-CFLAGS,$(TEST_SRCS),$(CHECK_CFLAGS))
-OBJS := $(SRCS:%.cc=.obj/%.o) $(TEST_SRCS:%.cc=.obj/%.o) $(GTEST_SRCS:%.cc=.obj/%.o)
+OBJS := $(SRCS:%.cc=build/%.o) $(TEST_SRCS:%.cc=build/%.o) $(GTEST_SRCS:%.cc=build/%.o)
 
 define compile
 	@mkdir -p $(dir $@)
 	$(call trace,$(1),$<,\
 	  $(CC) -iquote. $(CFLAGS) $(CFLAGS-$<) $(2) $(DEPFLAGS) -E $<)
-	$(Q)$(CC) -iquote. $(CFLAGS) $(CFLAGS-$<) $(2) -E -o .obj/$*.t $<
-	$(Q)$(EXPAND) $(EXPANDARGS) -o .obj/$*.i .obj/$*.t
-	$(Q)$(CC) $(CFLAGS) $(CFLAGS-$<) $(2) -c -o $@ .obj/$*.i
+	$(Q)$(CC) -iquote. $(CFLAGS) $(CFLAGS-$<) $(2) -E -o build/$*.t $<
+	$(Q)$(EXPAND) $(EXPANDARGS) -o build/$*.i build/$*.t
+	$(Q)$(CC) $(CFLAGS) $(CFLAGS-$<) $(2) -c -o $@ build/$*.i
 endef
 
 define compilecxx
@@ -184,16 +179,17 @@ endef
 # Slightly different rules for protobuf object files
 # because their source files have different locations.
 
-$(OBJS): .obj/%.o: %.cc $(PROTOSRCS)
+$(OBJS): build/%.o: %.cc $(PROTOSRCS)
 	$(call compilecxx,CC,)
 
-$(OBJS:%.o=%-pic.o): .obj/%-pic.o: %.cc $(PROTOSRCS)
+$(info warning $(OBJS:%.o=%-pic.o))
+$(OBJS:%.o=%-pic.o): build/%-pic.o: %.cc $(PROTOSRCS)
 	$(call compilecxx,CCPIC,-fPIC)
 
-$(PROTOOBJS): .obj/%.o: .obj/gen/%.pb.cc
+$(PROTOOBJS): build/%.o: %.pb.cc
 	$(call compilecxx,CC,)
 
-$(PROTOOBJS:%.o=%-pic.o): .obj/%-pic.o: .obj/gen/%.pb.cc $(PROTOSRCS)
+$(PROTOOBJS:%.o=%-pic.o): build/%-pic.o: build/%.pb.cc $(PROTOSRCS)
 	$(call compilecxx,CCPIC,-fPIC)
 
 #
@@ -204,6 +200,7 @@ $(call add-LDFLAGS,$(TEST_BINS),$(CHECK_LDFLAGS))
 
 $(BINS) $(TEST_BINS): %:
 	$(call trace,LD,$@,$(LD) -o $@ $^ $(LDFLAGS) $(LDFLAGS-$@))
+	$(LD) -o $@ $^ $(LDFLAGS) $(LDFLAGS-$@)
 
 #
 # Automatic dependencies
@@ -217,15 +214,15 @@ DEPS := $(OBJS:.o=.d) $(OBJS:.o=-pic.d)
 # Testing
 #
 GTEST_INTERNAL_SRCS := $(wildcard $(GTEST_DIR)/src/*.cc)
-GTEST_OBJS := $(patsubst %.cc,.obj/gtest/%.o,$(notdir $(GTEST_INTERNAL_SRCS)))
+GTEST_OBJS := $(patsubst %.cc,build/gtest/%.o,$(notdir $(GTEST_INTERNAL_SRCS)))
 
-$(GTEST_OBJS): .obj/gtest/%.o: $(GTEST_DIR)/src/%.cc
+$(GTEST_OBJS): build/gtest/%.o: $(GTEST_DIR)/src/%.cc
 	$(call compilecxx,CC,-I$(GTEST_DIR) -Wno-missing-field-initializers)
 
-$(GTEST) : .obj/gtest/gtest-all.o
+$(GTEST) : build/gtest/gtest-all.o
 	$(call trace,AR,$@,$(AR) $(ARFLAGS) $@ $^)
 
-$(GTEST_MAIN) : .obj/gtest/gtest-all.o .obj/gtest/gtest_main.o
+$(GTEST_MAIN) : build/gtest/gtest-all.o build/gtest/gtest_main.o
 	$(call trace,AR,$@,$(AR) $(ARFLAGS) $@ $^)
 
 #
@@ -235,7 +232,8 @@ $(GTEST_MAIN) : .obj/gtest/gtest-all.o .obj/gtest/gtest_main.o
 .PHONY: clean
 clean:
 	$(call trace,RM,binaries,rm -f $(BINS) $(TEST_BINS))
-	$(call trace,RM,objects,rm -rf .obj)
+	$(call trace,RM,objects,rm -rf build)
+	$(call trace,RM,generated proto,rm -rf $(PROTOSRCS) $(PROTOHEADERS))
 
 #
 # Debugging
@@ -249,6 +247,20 @@ print-%:
 
 .PHONY: all
 all: $(BINS)
+
+#TODO Permissions?
+INSTALL_PATH?=/usr/local
+.PHONY: install
+install: all
+	@mkdir -p $(DEST_DIR)$(INSTALL_PATH)/lib/
+	$(call trace, CP, lib, cp ./bin/libtapir.so $(DEST_DIR)$(INSTALL_PATH)/lib)
+	@mkdir -p $(DEST_DIR)$(INSTALL_PATH)/include/tapir
+	$(call trace, CP, headers, cp --parents `find -name "*.h"` -t $(DEST_DIR)$(INSTALL_PATH)/include/)
+
+.PHONY: uninstall
+uninstall: 
+	rm $(DEST_DIR)$(INSTALL_PATH)/lib/libtapir.so
+	rm -r $(DEST_DIR)$(INSTALL_PATH)/include/tapir
 
 $(TEST_BINS:%=run-%): run-%: %
 	$(call trace,RUN,$<,$<)
