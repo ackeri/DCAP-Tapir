@@ -13,8 +13,10 @@
 #include "tapir/lib/message.h"
 #include "tapir/store/common/timestamp.h"
 #include "tapir/store/common/common-proto.pb.h"
+#include "tapir/store/common/increment.h"
 
 #include <unordered_map>
+#include <vector>
 
 // Reply types
 #define REPLY_OK 0
@@ -36,7 +38,7 @@ private:
     std::unordered_map<std::string, std::string> writeSet;
 
 	// map between key and what to increment by
-	std::unordered_map<std::string, int> incrementSet;
+	std::unordered_map<std::string, std::vector<Increment>> incrementSet;
 
 public:
     Transaction();
@@ -45,11 +47,11 @@ public:
 
     const std::unordered_map<std::string, Timestamp>& getReadSet() const;
     const std::unordered_map<std::string, std::string>& getWriteSet() const;
-	const std::unordered_map<std::string, int>& getIncrementSet() const;
+	const std::unordered_map<std::string, std::vector<Increment>>& getIncrementSet() const;
     
     void addReadSet(const std::string &key, const Timestamp &readTime);
     void addWriteSet(const std::string &key, const std::string &value);
-	void addIncrementSet(const std::string &key, const int inc);
+	void addIncrementSet(const std::string &key, const Increment inc);
     void serialize(TransactionMessage *msg) const;
 };
 

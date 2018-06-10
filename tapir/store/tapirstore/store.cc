@@ -44,9 +44,12 @@ Store::Get(uint64_t id, const string &key, pair<Timestamp,string> &value)
 {
     Debug("[%lu] GET %s", id, key.c_str());
 
-    bool ret = store.get(key, value);
+	VersionedValue val;
+    bool ret = store.get(key, val);
     if (ret) {
         Debug("Value: %s at <%lu, %lu>", value.second.c_str(), value.first.getTimestamp(), value.first.getID());
+		value.first = val.write;
+		value.second = val.value;
         return REPLY_OK;
     } else {
         return REPLY_FAIL;
@@ -58,8 +61,11 @@ Store::Get(uint64_t id, const string &key, const Timestamp &timestamp, pair<Time
 {
     Debug("[%lu] GET %s at <%lu, %lu>", id, key.c_str(), timestamp.getTimestamp(), timestamp.getID());
 
-    bool ret = store.get(key, timestamp, value);
+	VersionedValue val;
+    bool ret = store.get(key, timestamp, val);
     if (ret) {
+		value.first = val.write;
+		value.second = val.value;
         return REPLY_OK;
     } else {
         return REPLY_FAIL;
@@ -162,18 +168,18 @@ Store::Prepare(uint64_t id, const Transaction &txn, const Timestamp &timestamp, 
 
     // check for conflicts with the write set
     for (auto &write : txn.getWriteSet()) {
-        pair<Timestamp, string> val;
+        VersionedValue val;
         // if this key is in the store
         if ( store.get(write.first, val) ) {
             Timestamp lastRead;
             bool ret;
 
-            // if the last committed write is bigger than the timestamp,
+            // if the last committed write/inc is bigger than the timestamp,
             // then can't accept in linearizable
-            if ( linearizable && val.first > timestamp ) {
+            if ( linearizable && val.write > timestamp ) {
                 Debug("[%lu] RETRY ww conflict w/ prepared key:%s", 
                       id, write.first.c_str());
-                proposedTimestamp = val.first;
+                proposedTimestamp = val.write;
                 return REPLY_RETRY;	                    
             }
 
@@ -211,6 +217,16 @@ Store::Prepare(uint64_t id, const Transaction &txn, const Timestamp &timestamp, 
                 return REPLY_RETRY;
             }
         }
+		if ( linearizable &&
+             pIncs.find(write.first) != pIncs.end()) {
+            set<Timestamp>::iterator it = pIncs[write.first].upper_bound(timestamp);
+            if ( it != pIncs[write.first].end() ) {
+                Debug("[%lu] RETRY wi conflict w/ prepared key:%s",
+                      id, write.first.c_str());
+                proposedTimestamp = *it;
+                return REPLY_RETRY;
+            }
+        }
 
 
         //if there is a pending read for this key, greater than the
@@ -224,21 +240,27 @@ Store::Prepare(uint64_t id, const Transaction &txn, const Timestamp &timestamp, 
     }
 
     // check for conflicts with the increment set
-	//TODO: implement this correctly
     for (auto &inc : txn.getIncrementSet()) {
-        pair<Timestamp, string> val;
-
-        store.get(inc.first, val);
-		Timestamp lastRead;
-		bool ret;
-
-		// if the last committed write is bigger than the timestamp,
-		// then can't accept in linearizable
-		if ( linearizable && val.first > timestamp ) {
-			Debug("[%lu] RETRY iw conflict w/ prepared key:%s", 
-					id, inc.first.c_str());
-			proposedTimestamp = val.first;
-			return REPLY_RETRY;	                    
+        
+		set<VersionedValue>::iterator it;
+		store.getValue(inc.first, timestamp, it);
+		// if there exists a committed write of distince increment op
+		// of bigger timestamp, then can't accept in linearizable
+		if (linearizable) {
+			Timestamp suggest;
+			for( ; it != store.store[inc.first].end(); it++) {
+				for(auto i : inc.second) {
+					if((*it).op != i.op) {
+						suggest = (*it).write;
+					}
+				}
+			}
+			if(suggest.isValid()) {
+				Debug("[%lu] RETRY iw conflict w/ prepared key:%s", 
+						id, inc.first.c_str());
+				proposedTimestamp = suggest;
+				return REPLY_RETRY;
+			}
 		}
 
 		// if last committed read is bigger than the timestamp, can't
@@ -246,6 +268,9 @@ Store::Prepare(uint64_t id, const Transaction &txn, const Timestamp &timestamp, 
 
 		// if linearizable mode, then we get the timestamp of the last
 		// read ever on this object
+		Timestamp lastRead;
+		bool ret;
+
 		if (linearizable) {
 			ret = store.getLastRead(inc.first, lastRead);
 		} else {
@@ -255,24 +280,57 @@ Store::Prepare(uint64_t id, const Transaction &txn, const Timestamp &timestamp, 
 
 		// if this key is in the store and has been read before
 		if (ret && lastRead > timestamp) {
-			Debug("[%lu] RETRY wr conflict w/ prepared key:%s", 
+			Debug("[%lu] RETRY ir conflict w/ prepared key:%s", 
 					id, inc.first.c_str());
 			proposedTimestamp = lastRead;
 			return REPLY_RETRY; 
 		}
 
-
-        // if there is a pending write for this key, greater than the
+		// if there is a pending write for this key, greater than the
         // proposed timestamp, retry
         if ( linearizable &&
              pWrites.find(inc.first) != pWrites.end()) {
             set<Timestamp>::iterator it = pWrites[inc.first].upper_bound(timestamp);
             if ( it != pWrites[inc.first].end() ) {
-                Debug("[%lu] RETRY ww conflict w/ prepared key:%s",
+                Debug("[%lu] RETRY iw conflict w/ prepared key:%s",
                       id, inc.first.c_str());
                 proposedTimestamp = *it;
                 return REPLY_RETRY;
             }
+        }
+
+
+        // if there is a pending increment of distinct increment op 
+		// for this key, greater than the proposed timestamp, retry
+        if ( linearizable &&
+             pIncs.find(inc.first) != pIncs.end()) {
+            set<Timestamp>::iterator it = pIncs[inc.first].upper_bound(timestamp);
+			Timestamp suggest;
+			for( ; it != pIncs[inc.first].end() ; it++) {
+				//find increment op of operation at iterator
+				vector<Increment> incList;
+				for(auto p : prepared) {
+					if(p.second.first == *it) {
+						auto temp = p.second.second.getIncrementSet();
+						incList = temp[inc.first];
+						break;
+					}
+				}
+				for(auto pinc : incList) {
+					for(auto i : inc.second) {
+						if(pinc.op != i.op) {
+							suggest = *it;
+						}
+					}
+				}
+			}
+			if(suggest.isValid()) {
+				Debug("[%lu] RETRY ww conflict w/ prepared key:%s",
+                   	  id, inc.first.c_str());
+				proposedTimestamp = suggest;
+	            return REPLY_RETRY;
+			}
+
         }
 
 
@@ -327,10 +385,12 @@ Store::Commit(const Timestamp &timestamp, const Transaction &txn)
     }
 
 	// perform all increments on the key-value store
-	for (auto &inc : txn.getIncrementSet()) {
-		store.increment(inc.first,
-		                inc.second,
-		                timestamp);
+	for (auto &incList : txn.getIncrementSet()) {
+		for (auto inc : incList.second) {
+			store.increment(incList.first,
+							inc,
+							timestamp);
+		}
 	}
 }
 
@@ -377,8 +437,8 @@ Store::GetPreparedIncrements(unordered_map<string, set<Timestamp>> &incs)
 {
 	// gather up the set of all increments that are currently prepared
 	for (auto &t : prepared) {
-		for (auto &inc : t.second.second.getIncrementSet()) {
-			incs[inc.first].insert(t.second.first);
+		for (auto &incList : t.second.second.getIncrementSet()) {
+			incs[incList.first].insert(t.second.first);
 		}
 	}
 }

@@ -58,7 +58,7 @@
 #define RETRY_TIMEOUT 500000
 
 
-typedef std::function<void (const uint64_t reactive_id, const Timestamp, const std::map<std::string, VersionedKVStore::VersionedValue> &values)> notification_handler_t;
+typedef std::function<void (const uint64_t reactive_id, const Timestamp, const std::map<std::string, VersionedValue> &values)> notification_handler_t;
 
 class TxnClient
 {

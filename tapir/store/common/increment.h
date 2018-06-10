@@ -1,11 +1,11 @@
 // -*- mode: c++; c-file-style: "k&r"; c-basic-offset: 4 -*-
-// vim: set ts=4 sw=4:
 /***********************************************************************
  *
- * store/common/backend/comstore.cc:
- *   Versioned store with support for commutative operations
+ * store/common/increment.h:
+ *   Representation of increment operation.
  *
  * Copyright 2015 Irene Zhang <iyzhang@cs.washington.edu>
+ *                Naveen Kr. Sharma <naveenks@cs.washington.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -29,31 +29,25 @@
  *
  **********************************************************************/
 
-#include "tapir/store/common/backend/commstore.h"
-
-using namespace std;
-
-void
-CommutativeStore::increment(const string &key, const int inc, const Timestamp &t)
-{
-    set<VersionedValue>::iterator it;
-    char buf[100];
-    string val;
-    int total;
-   
-	getValue(key, t, it);
-    if (it != store[key].end()) {
-		// set up insert value
-		total = atoi(it->value.c_str()) + inc;
-		sprintf(buf, "%d", total);
-		val = string(buf);
-    } else {
-        sprintf(buf, "%d", inc);
-        val = string(buf);
-    }
-    store[key].insert(VersionedValue(t, val, INCREMENT));
-}
+#ifndef _INCREMENT_H_
+#define _INCREMENT_H_
 
 
+#include <string>
 
+#define NOT_INCREMENT 0
+#define ADD 1
+#define APPEND 2
 
+class Increment {
+	public:
+	std::string value;
+	uint64_t op;
+
+	Increment();
+	Increment(std::string val, uint64_t op);
+
+	void apply(std::string &value) const;
+};
+
+#endif /* _INCREMENT_H_ */

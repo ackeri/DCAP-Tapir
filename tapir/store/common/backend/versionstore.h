@@ -34,6 +34,7 @@
 #include "tapir/lib/assert.h"
 #include "tapir/lib/message.h"
 #include "tapir/store/common/timestamp.h"
+#include "tapir/store/common/increment.h"
 
 #include <set>
 #include <map>
@@ -43,43 +44,45 @@
 #define INCREMENT 1
 #define APPEND 2
 
+struct VersionedValue {
+	Timestamp write;
+	std::string value;
+	uint64_t op;
+
+	VersionedValue() : write(Timestamp()), value("tmp"), op(WRITE) { };
+	VersionedValue(Timestamp commit) : write(commit), value("tmp"), op(WRITE) { };
+	VersionedValue(Timestamp commit, std::string val) : write(commit), value(val), op(WRITE) { };
+	VersionedValue(Timestamp commit, std::string val, int operation) : write(commit), value(val), op(operation) { };
+
+
+	friend bool operator> (const VersionedValue &v1, const VersionedValue &v2) {
+		return v1.write > v2.write;
+	};
+	friend bool operator< (const VersionedValue &v1, const VersionedValue &v2) {
+		return v1.write < v2.write;
+	};
+};
+
 class VersionedKVStore
 {
 public:
     VersionedKVStore();
     ~VersionedKVStore();
 
-    bool get(const std::string &key, std::pair<Timestamp, std::string> &value);
-    bool get(const std::string &key, const Timestamp &t, std::pair<Timestamp, std::string> &value);
+    bool get(const std::string &key, VersionedValue &value);
+    bool get(const std::string &key, const Timestamp &t, VersionedValue &value);
     bool getRange(const std::string &key, const Timestamp &t, std::pair<Timestamp, Timestamp> &range);
+	void getValue(const std::string &key, const Timestamp &t, std::set<VersionedValue>::iterator &it);
     bool getLastRead(const std::string &key, Timestamp &readTime);
     bool getLastRead(const std::string &key, const Timestamp &t, Timestamp &readTime);
     void put(const std::string &key, const std::string &value, const Timestamp &t);
+	void increment(const std::string &key, const Increment inc, const Timestamp &t);
     void commitGet(const std::string &key, const Timestamp &readTime, const Timestamp &commit);
-
-    struct VersionedValue {
-        Timestamp write;
-        std::string value;
-		int op;
-
-        VersionedValue(Timestamp commit) : write(commit), value("tmp") { };
-        VersionedValue(Timestamp commit, std::string val) : write(commit), value(val), op(WRITE) { };
-        VersionedValue(Timestamp commit, std::string val, int operation) : write(commit), value(val), op(operation) { };
-
-
-        friend bool operator> (const VersionedValue &v1, const VersionedValue &v2) {
-            return v1.write > v2.write;
-        };
-        friend bool operator< (const VersionedValue &v1, const VersionedValue &v2) {
-            return v1.write < v2.write;
-        };
-    };
 
     /* Global store which keeps key -> (timestamp, value) list. */
     std::unordered_map< std::string, std::set<VersionedValue> > store;
     std::unordered_map< std::string, std::map< Timestamp, Timestamp > > lastReads;
     bool inStore(const std::string &key);
-    void getValue(const std::string &key, const Timestamp &t, std::set<VersionedValue>::iterator &it);
 };
 
 #endif  /* _VERSIONED_KV_STORE_H_ */

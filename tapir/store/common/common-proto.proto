@@ -25,7 +25,8 @@ message WriteMessage {
 
 message IncrementMessage {
    required string key = 1;
-   required int32 inc = 2;
+   required string value = 2;
+   required uint64 op = 3;
 }
 
 

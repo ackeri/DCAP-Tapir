@@ -43,7 +43,7 @@ VersionedKVStore::inStore(const string &key)
 }
 
 void
-VersionedKVStore::getValue(const string &key, const Timestamp &t, set<VersionedKVStore::VersionedValue>::iterator &it)
+VersionedKVStore::getValue(const string &key, const Timestamp &t, set<VersionedValue>::iterator &it)
 {
     VersionedValue v(t);
     it = store[key].upper_bound(v);
@@ -60,12 +60,11 @@ VersionedKVStore::getValue(const string &key, const Timestamp &t, set<VersionedK
 /* Returns the most recent value and timestamp for given key.
  * Error if key does not exist. */
 bool
-VersionedKVStore::get(const string &key, pair<Timestamp, string> &value)
+VersionedKVStore::get(const string &key, VersionedValue &value)
 {
     // check for existence of key in store
     if (inStore(key)) {
-        VersionedValue v = *(store[key].rbegin());
-        value = make_pair(v.write, v.value);
+        value = *(store[key].rbegin());
         return true;
     }
     return false;
@@ -74,13 +73,13 @@ VersionedKVStore::get(const string &key, pair<Timestamp, string> &value)
 /* Returns the value valid at given timestamp.
  * Error if key did not exist at the timestamp. */
 bool
-VersionedKVStore::get(const string &key, const Timestamp &t, pair<Timestamp, string> &value)
+VersionedKVStore::get(const string &key, const Timestamp &t, VersionedValue &value)
 {
     if (inStore(key)) {
         set<VersionedValue>::iterator it;
         getValue(key, t, it);
         if (it != store[key].end()) {
-            value = make_pair((*it).write, (*it).value);
+			value = *it;
             return true;
         }
     }
@@ -113,6 +112,16 @@ VersionedKVStore::put(const string &key, const string &value, const Timestamp &t
     // Key does not exist. Create a list and an entry.
     store[key].insert(VersionedValue(t, value));
 }
+
+void
+VersionedKVStore::increment(const std::string &key, const Increment inc, const Timestamp &t)
+{
+	VersionedValue val;
+	get(key, val);
+	inc.apply(val.value);
+	store[key].insert(VersionedValue(t, val.value, inc.op));
+}
+
 
 /*
  * Commit a read by updating the timestamp of the latest read txn for

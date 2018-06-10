@@ -1,11 +1,11 @@
 // -*- mode: c++; c-file-style: "k&r"; c-basic-offset: 4 -*-
-// vim: set ts=4 sw=4:
 /***********************************************************************
  *
- * store/common/backend/comstore.cc:
- *   A versioned store that supports commutative operations
+ * store/common/increment.cc:
+ *   Representation of increment operation.
  *
  * Copyright 2015 Irene Zhang <iyzhang@cs.washington.edu>
+ *                Naveen Kr. Sharma <naveenks@cs.washington.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -29,20 +29,27 @@
  *
  **********************************************************************/
 
-#ifndef _COMM_KV_STORE_H_
-#define _COMM_KV_STORE_H_
-
-#include "tapir/lib/assert.h"
+#include "tapir/store/common/increment.h"
 #include "tapir/lib/message.h"
-#include "tapir/store/common/backend/versionstore.h"
 
-class CommutativeStore : public VersionedKVStore
-{
-public:
-    CommutativeStore() { };
-    ~CommutativeStore() { };
-    
-    void increment(const std::string &key, const int inc, const Timestamp &t);
-};
+Increment::Increment() : value("tmp"), op(NOT_INCREMENT) {}
+Increment::Increment(std::string val, uint64_t oper) : value(val), op(oper) {}
 
-#endif  /* _ */
+void
+Increment::apply(std::string &value) const {
+	int total;
+
+	switch(this->op) {
+		case NOT_INCREMENT:
+			Panic("Attempted to apply not increment operation as increment");
+			break;
+		case ADD: 
+			total = atoi(value.c_str()) + atoi(this->value.c_str());
+			value = std::to_string(total);
+			break;
+		case APPEND:
+			break;
+		default:
+			Panic("Attempted to apply unkown increment operation");
+	}
+}

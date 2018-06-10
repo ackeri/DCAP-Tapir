@@ -17,21 +17,22 @@ Transaction::Transaction(const TransactionMessage &msg)
 {
     for (int i = 0; i < msg.readset_size(); i++) {
         ReadMessage readMsg = msg.readset(i);
-        readSet[readMsg.key()] = Timestamp(readMsg.readtime());
+		addReadSet(readMsg.key(), readMsg.readtime());
     }
 
     for (int i = 0; i < msg.writeset_size(); i++) {
         WriteMessage writeMsg = msg.writeset(i);
-        writeSet[writeMsg.key()] = writeMsg.value();
+		addWriteSet(writeMsg.key(), writeMsg.value());
     }
 
     for (int i = 0; i < msg.incrementset_size(); i++) {
         IncrementMessage incMsg = msg.incrementset(i);
-        incrementSet[incMsg.key()] = incMsg.inc();
+		addIncrementSet(incMsg.key(), Increment(incMsg.value(), incMsg.op()));
     }
 }
 
-Transaction::~Transaction() { }
+Transaction::~Transaction() { 
+}
 
 const unordered_map<string, Timestamp>&
 Transaction::getReadSet() const
@@ -45,7 +46,7 @@ Transaction::getWriteSet() const
     return writeSet;
 }
 
-const unordered_map<string, int>&
+const unordered_map<string, std::vector<Increment>>&
 Transaction::getIncrementSet() const
 {
     return incrementSet;
@@ -67,9 +68,10 @@ Transaction::addWriteSet(const string &key,
 
 void
 Transaction::addIncrementSet(const string &key,
-                             const int inc)
+                             const Increment inc)
 {
-	incrementSet[key] += inc;
+	auto list = incrementSet[key];
+	list.push_back(inc);	
 }
 
 void
@@ -87,9 +89,12 @@ Transaction::serialize(TransactionMessage *msg) const
         writeMsg->set_value(write.second);
     }
 
-	for (auto inc : incrementSet) {
-		IncrementMessage *incMsg = msg->add_incrementset();
-		incMsg->set_key(inc.first);
-		incMsg->set_inc(inc.second);
+	for (auto incList : incrementSet) {
+		for (auto inc : incList.second) {
+			IncrementMessage *incMsg = msg->add_incrementset();
+			incMsg->set_key(incList.first);
+			incMsg->set_value(inc.value);
+			incMsg->set_op(inc.op);
+		}
 	}
 }

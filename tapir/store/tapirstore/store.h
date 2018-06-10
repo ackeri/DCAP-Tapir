@@ -74,7 +74,7 @@ private:
 
 protected:
     // Data store
-    CommutativeStore store;
+    VersionedKVStore store;
 
 };
 
