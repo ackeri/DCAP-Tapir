@@ -5,7 +5,7 @@
 #include <set>
 #include <string>
 
-#include "tapir/timestamp.h"
+#include "tapir/store/common/timestamp.h"
 #include "tapir/lib/tcptransport.h"
 
 #define NO_NOTIFICATION ULLONG_MAX
