@@ -7,7 +7,6 @@ LDFLAGS-$(d)libtapir.so += -shared
 BINS += $(d)libtapir.so
 
 #timerserver
-$(info warning $(OBJS-timeserver))
 $(d)timeserver: $(OBJS-timeserver) $(OBJS-vr-replica) $(LIB-udptransport)
 
 BINS += $(d)timeserver
