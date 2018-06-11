@@ -64,6 +64,8 @@ Transaction::addWriteSet(const string &key,
                          const string &value)
 {
     writeSet[key] = value;
+	//we are overwriting the increments we previously did
+	incrementSet[key].clear();
 }
 
 void
