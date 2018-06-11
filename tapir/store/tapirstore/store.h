@@ -38,7 +38,6 @@
 #include "tapir/store/common/transaction.h"
 #include "tapir/store/common/backend/txnstore.h"
 #include "tapir/store/common/backend/versionstore.h"
-#include "tapir/store/common/backend/commstore.h"
 
 #include <set>
 #include <unordered_map>
