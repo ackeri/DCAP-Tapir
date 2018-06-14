@@ -45,21 +45,21 @@
 #define APPEND 2
 
 struct VersionedValue {
-	Timestamp write;
+	Timestamp time;
 	std::string value;
 	uint64_t op;
 
-	VersionedValue() : write(Timestamp()), value("tmp"), op(WRITE) { };
-	VersionedValue(Timestamp commit) : write(commit), value("tmp"), op(WRITE) { };
-	VersionedValue(Timestamp commit, std::string val) : write(commit), value(val), op(WRITE) { };
-	VersionedValue(Timestamp commit, std::string val, int operation) : write(commit), value(val), op(operation) { };
+	VersionedValue() : time(Timestamp()), value("tmp"), op(WRITE) { };
+	VersionedValue(Timestamp commit) : time(commit), value("tmp"), op(WRITE) { };
+	VersionedValue(Timestamp commit, std::string val) : time(commit), value(val), op(WRITE) { };
+	VersionedValue(Timestamp commit, std::string val, int operation) : time(commit), value(val), op(operation) { };
 
 
 	friend bool operator> (const VersionedValue &v1, const VersionedValue &v2) {
-		return v1.write > v2.write;
+		return v1.time > v2.time;
 	};
 	friend bool operator< (const VersionedValue &v1, const VersionedValue &v2) {
-		return v1.write < v2.write;
+		return v1.time < v2.time;
 	};
 };
 

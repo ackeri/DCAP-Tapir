@@ -95,10 +95,10 @@ VersionedKVStore::getRange(const string &key, const Timestamp &t,
         getValue(key, t, it);
 
         if (it != store[key].end()) {
-            range.first = (*it).write;
+            range.first = (*it).time;
             it++;
             if (it != store[key].end()) {
-                range.second = (*it).write;
+                range.second = (*it).time;
             }
             return true;
         }
@@ -138,9 +138,9 @@ VersionedKVStore::commitGet(const string &key, const Timestamp &readTime, const 
         if (it != store[key].end()) {
             // figure out if anyone has read this version before
             if (lastReads.find(key) != lastReads.end() &&
-                lastReads[key].find((*it).write) != lastReads[key].end()) {
-                if (lastReads[key][(*it).write] < commit) {
-                    lastReads[key][(*it).write] = commit;
+                lastReads[key].find((*it).time) != lastReads[key].end()) {
+                if (lastReads[key][(*it).time] < commit) {
+                    lastReads[key][(*it).time] = commit;
                 }
             }
         }
@@ -153,8 +153,8 @@ VersionedKVStore::getLastRead(const string &key, Timestamp &lastRead)
     if (inStore(key)) {
         VersionedValue v = *(store[key].rbegin());
         if (lastReads.find(key) != lastReads.end() &&
-            lastReads[key].find(v.write) != lastReads[key].end()) {
-            lastRead = lastReads[key][v.write];
+            lastReads[key].find(v.time) != lastReads[key].end()) {
+            lastRead = lastReads[key][v.time];
             return true;
         }
     }
@@ -162,7 +162,7 @@ VersionedKVStore::getLastRead(const string &key, Timestamp &lastRead)
 }    
 
 /*
- * Get the latest read for the write valid at timestamp t
+ * Get the latest read for the time valid at timestamp t
  */
 bool
 VersionedKVStore::getLastRead(const string &key, const Timestamp &t, Timestamp &lastRead)
@@ -174,8 +174,8 @@ VersionedKVStore::getLastRead(const string &key, const Timestamp &t, Timestamp &
 
         // figure out if anyone has read this version before
         if (lastReads.find(key) != lastReads.end() &&
-            lastReads[key].find((*it).write) != lastReads[key].end()) {
-            lastRead = lastReads[key][(*it).write];
+            lastReads[key].find((*it).time) != lastReads[key].end()) {
+            lastRead = lastReads[key][(*it).time];
             return true;
         }
     }

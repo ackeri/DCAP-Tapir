@@ -48,7 +48,7 @@ Store::Get(uint64_t id, const string &key, pair<Timestamp,string> &value)
     bool ret = store.get(key, val);
     if (ret) {
         Debug("Value: %s at <%lu, %lu>", value.second.c_str(), value.first.getTimestamp(), value.first.getID());
-		value.first = val.write;
+		value.first = val.time;
 		value.second = val.value;
         return REPLY_OK;
     } else {
@@ -64,7 +64,7 @@ Store::Get(uint64_t id, const string &key, const Timestamp &timestamp, pair<Time
 	VersionedValue val;
     bool ret = store.get(key, timestamp, val);
     if (ret) {
-		value.first = val.write;
+		value.first = val.time;
 		value.second = val.value;
         return REPLY_OK;
     } else {
@@ -176,10 +176,10 @@ Store::Prepare(uint64_t id, const Transaction &txn, const Timestamp &timestamp, 
 
             // if the last committed write/inc is bigger than the timestamp,
             // then can't accept in linearizable
-            if ( linearizable && val.write > timestamp ) {
+            if ( linearizable && val.time > timestamp ) {
                 Debug("[%lu] RETRY ww conflict w/ prepared key:%s", 
                       id, write.first.c_str());
-                proposedTimestamp = val.write;
+                proposedTimestamp = val.time;
                 return REPLY_RETRY;	                    
             }
 
@@ -251,7 +251,7 @@ Store::Prepare(uint64_t id, const Transaction &txn, const Timestamp &timestamp, 
 			for( ; it != store.store[inc.first].end(); it++) {
 				for(auto i : inc.second) {
 					if((*it).op != i.op) {
-						suggest = (*it).write;
+						suggest = (*it).time;
 					}
 				}
 			}
